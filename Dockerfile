@@ -1,5 +1,5 @@
 # FROM pytorchlightning/pytorch_lightning:base-cuda-py3.9-torch1.10
-FROM tensorflow/tensorflow:2.10.0-gpu
+FROM tensorflow/tensorflow:2.9.2-gpu
 
 # A workaround in case any problem with cuda
 # RUN rm /etc/apt/sources.list.d/cuda.list

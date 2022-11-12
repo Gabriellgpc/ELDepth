@@ -10,3 +10,9 @@ ELDepth: Extreme Low-Power Monocular Depth Estimation for mobile devices
 - [DIODE: A Dense Indoor and Outdoor DEpth Dataset](https://diode-dataset.org/)
 - [NYU Depth Dataset V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 - [The KITTI Vision Benchmark Suite](https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
+
+
+## Future work
+- Model destilltion
+- Dynamic quantization
+- SSL
