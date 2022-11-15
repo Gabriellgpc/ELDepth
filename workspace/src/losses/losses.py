@@ -1,5 +1,9 @@
 import tensorflow as tf
 
+def charbonnier_loss(y_true, y_pred, eps=1e-3):
+    loss = tf.reduce_mean(tf.sqrt(tf.square(y_true - y_pred) + tf.square(eps)))
+    return loss
+
 def depth_final_loss(target, pred, max_depth=350, loss_weights=[1.0, 1.0, 0.1]):
     """
     # self.ssim_loss_weight = 0.85

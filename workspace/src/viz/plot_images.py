@@ -19,22 +19,33 @@ import cv2
 
 
 def visualize_depth_map(samples, test=False, model=None, save_at=''):
-    input, target = samples
+    images, depths, masks = samples
+
+    images = images.numpy()
+    depths = depths.numpy()
+    masks = masks.numpy()
+
+    max_depth = min(300, depths.max())
+    depths = np.clip(depths, 0.1, max_depth)
+    depths = np.log(depths)
+    depths = np.ma.masked_where(~(masks > 0), depths)
+    depths = np.clip(depths, 0.1, np.log(max_depth))
+
     cmap = plt.cm.get_cmap("jet").copy()
     # cmap = plt.cm.jet
     cmap.set_bad(color="black")
 
     fig, ax = plt.subplots(6, 3, figsize=(50, 50))
     if test:
-        pred = model.predict(input)
+        pred = model.predict(images)
         for i in range(6):
-            ax[i, 0].imshow((input[i].squeeze()))
-            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
+            ax[i, 0].imshow((images[i].squeeze()))
+            ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
             ax[i, 2].imshow((pred[i].squeeze()), cmap=cmap)
     else:
         for i in range(6):
-            ax[i, 0].imshow((input[i].squeeze()))
-            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
+            ax[i, 0].imshow((images[i].squeeze()))
+            ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
     if save_at != '':
         plt.savefig(save_at)
     return fig, ax

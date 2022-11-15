@@ -9,9 +9,9 @@ from keras.layers import Conv2D, \
                          ReLU, \
                          Concatenate
 
-class XLRD(Model):
+class XLSR(Model):
     def __init__(self, num_gblocks=4, nfeat=32, **kwargs):
-        super(XLRD, self).__init__(**kwargs)
+        super(XLSR, self).__init__(**kwargs)
         self.num_gblocks = num_gblocks
         self.nfeat = nfeat
 

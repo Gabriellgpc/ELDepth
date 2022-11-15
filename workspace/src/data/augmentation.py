@@ -77,12 +77,3 @@ def random_crop(input_image, target_image, crop_size):
         target_h : target_h + crop_size, target_w : target_w + crop_size
     ]
     return input_image_cropped, target_image_cropped
-
-# def custom_augment(image):
-#     # As discussed in the SimCLR paper, the series of augmentation
-#     # transformations (except for random crops) need to be applied
-#     # randomly to impose translational invariance.
-#     image = flip_random_crop(image)
-#     image = random_apply(color_jitter, image, p=0.8)
-#     image = random_apply(color_drop, image, p=0.2)
-#     return image

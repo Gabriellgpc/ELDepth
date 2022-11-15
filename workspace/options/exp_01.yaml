@@ -6,15 +6,12 @@ gpu: 0 #[0,1] or -1 in case don't want to use any gpu
 
 # dataset
 dataloader:
-  batch_size: 8
+  batch_size: 32
   patch_size: [256]
   dim: [256, 256]
   subset: null #pass a int here if you want to use just a subset of the train set
-  # aug:
-  #   gaussian_noise: False
-  #   iso_noise: False
-  train: '/datasets/DIODO/train/indoors'
-  validation: '/datasets/DIODO/val/indoors'
+  train_csv: '/workspace/tmp/DIODO_train.csv'
+  validation_csv: '/workspace/tmp/DIODO_val.csv'
 
 trainer:
   epochs: 500
@@ -23,12 +20,19 @@ trainer:
   min_lr: 1.e-6
   steps_per_epoch: 100
   validation_steps: 50
-  validation_freq: 2
+  validation_freq: 1
   verbose: 0
-  loss: 'custom_loss'
+  loss: 'charbonnier_loss' #[custom_loss, mae, mse, charbonnier_loss]
 
 network:
   type: unet
 
-  unet:
-    filters: []
+  UNet:
+    null
+  SqueezeUNet:
+    num_classes: 3
+    deconv_ksize: 3
+    dropout: 0.5
+  XLSR:
+    num_gblocks: 4
+    nfeat: 32

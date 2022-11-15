@@ -4,15 +4,19 @@ from functools import partial
 import click
 import pandas as pd
 import tensorflow as tf
+import wandb
 from wandb.keras import WandbCallback
 
-import wandb
-from src.data.dataloader import DataGenerator
+from src.data.augmentation import *
+# from src.data.dataloader import DataGenerator
+from src.data.dataloader import build_tf_dataloader, get_tf_resize
 from src.helpers import setup_gpu
 from src.helpers.utils import read_configuration, seed_everything
-from src.losses import depth_final_loss
+from src.losses import depth_final_loss, charbonnier_loss
 from src.lr_schedules import cosineAnnealingScheduler
 from src.models import UNet
+from src.models import SqueezeUNet
+from src.models import XLSR
 from src.optimizer.gc_adam import GCAdam
 from src.viz.plot_images import visualize_depth_map
 
@@ -48,45 +52,62 @@ def get_callbacks(config):
     return callbacks
 
 def get_datagenerator(config):
-    train_path = config.dataloader.train
-    validation_path = config.dataloader.validation
 
-    filelist = []
-    for root, dirs, files in os.walk(train_path):
-        for file in files:
-            filelist.append(os.path.join(root, file))
-    filelist.sort()
-    data = {
-        "image": [x for x in filelist if x.endswith(".png")],
-        "depth": [x for x in filelist if x.endswith("_depth.npy")],
-        "mask":  [x for x in filelist if x.endswith("_depth_mask.npy")],
-    }
-    df = pd.DataFrame(data)
-    df = df.sample(frac=1, random_state=config.random_seed)
+    # read CSV
+    train_df = pd.read_csv(config.dataloader.train_csv)
+    validation_df = pd.read_csv(config.dataloader.train_csv)
 
-    train_loader = DataGenerator(
-        data=df[:16].reset_index(drop="true"),
-        batch_size=config.dataloader.batch_size,
-        dim=config.dataloader.dim)
+    # train loader
+    train_transforms = [get_tf_resize(config.dataloader.dim)]
+    train_loader = build_tf_dataloader(
+                        input_paths=train_df['image'].values,
+                        depth_paths=train_df['depth'].values,
+                        mask_paths=train_df['mask'].values,
+                        batch_size=config.dataloader.batch_size,
+                        transforms=train_transforms,
+                        train=True
+                        )
 
-    filelist = []
-    for root, dirs, files in os.walk(validation_path):
-        for file in files:
-            filelist.append(os.path.join(root, file))
-
-    filelist.sort()
-    data = {
-        "image": [x for x in filelist if x.endswith(".png")],
-        "depth": [x for x in filelist if x.endswith("_depth.npy")],
-        "mask":  [x for x in filelist if x.endswith("_depth_mask.npy")],
-    }
-    df = pd.DataFrame(data)
-    validation_loader = DataGenerator(
-        data=df[:16].reset_index(drop="true"),
-        batch_size=config.dataloader.batch_size,
-        dim=config.dataloader.dim)
+    # validation loader
+    validation_transforms = [get_tf_resize(config.dataloader.dim)]
+    validation_loader = build_tf_dataloader(
+                        input_paths=validation_df['image'].values,
+                        depth_paths=validation_df['depth'].values,
+                        mask_paths=validation_df['mask'].values,
+                        batch_size=config.dataloader.batch_size,
+                        transforms=validation_transforms,
+                        train=True #for debug or in case wish to use the validations steps
+                        )
 
     return train_loader, validation_loader
+
+def get_model(config):
+    model_name = config.network['type'].lower()
+    model = UNet()
+
+    if model_name == 'squeezenet':
+        hparams = config.network['SqueezeUNet']
+        x = tf.keras.layers.Input(shape=(config.dataloader.dim[0], config.dataloader.dim[1], 3))
+        out = SqueezeUNet(x, **hparams)
+        model = tf.keras.models.Model(inputs=x, outputs=out, name='Squeeze-UNet')
+    if model_name == 'xlsr':
+        hparams = config.network['XLSR']
+        model = XLSR(**hparams, name='XLSR')
+
+    return model
+
+def get_loss(config):
+    loss_name = config.trainer.loss.lower()
+    loss = depth_final_loss
+
+    if loss_name == 'charbonnier_loss':
+        loss = charbonnier_loss
+    if loss_name == 'mae':
+        loss = tf.keras.losses.mae
+    if loss_name == 'mse':
+        loss = tf.keras.losses.mse
+
+    return loss
 
 @click.command()
 @click.option('--config-file', default='/workspace/options/exp_01.yaml')
@@ -121,10 +142,11 @@ def main(config_file):
     #      Model
     # ------------------
 
-    model = UNet()
+    model = get_model(config)
 
     # Compile the model
-    model.compile(optimizer, loss=depth_final_loss)
+    loss = get_loss(config)
+    model.compile(optimizer, loss=loss)
 
     x_dummy = tf.random.normal([1,*config.dataloader.dim, 3], 0.5, 0.5)
     model(x_dummy)
@@ -136,10 +158,15 @@ def main(config_file):
 
     model.fit(
         train_loader,
-        epochs=config.trainer.epochs,
         validation_data=validation_loader,
+        epochs=config.trainer.epochs,
+        steps_per_epoch=config.trainer.steps_per_epoch,
+        validation_steps=config.trainer.validation_steps,
+        validation_freq=config.trainer.validation_freq,
         callbacks=callbacks,
-        verbose=1,
+        max_queue_size=5,
+        use_multiprocessing=True,
+        workers=os.cpu_count(),
     )
 
     # ------------------

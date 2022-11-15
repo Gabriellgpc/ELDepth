@@ -16,3 +16,4 @@ ELDepth: Extreme Low-Power Monocular Depth Estimation for mobile devices
 - Model destilltion (base code)[https://keras.io/examples/keras_recipes/better_knowledge_distillation/]
 - Dynamic quantization
 - SSL
+- visualization as in https://github.com/aim-uofa/AdelaiDepth
