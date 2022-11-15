@@ -22,7 +22,7 @@ trainer:
   validation_steps: 50
   validation_freq: 1
   verbose: 0
-  loss: 'charbonnier_loss' #[custom_loss, mae, mse, charbonnier_loss]
+  loss: 'loss_SILog' #[custom_loss, mae, mse, charbonnier_loss, loss_SILlog, loss_iRMSE, loss_RMSE]
 
 network:
   type: unet

@@ -4,6 +4,36 @@ def charbonnier_loss(y_true, y_pred, eps=1e-3):
     loss = tf.reduce_mean(tf.sqrt(tf.square(y_true - y_pred) + tf.square(eps)))
     return loss
 
+def loss_RMSE(y_true, y_pred):
+    mse = tf.keras.losses.mean_squared_error(y_true, y_pred)
+    rmse = tf.sqrt(mse)
+    return rmse
+
+def loss_iRMSE(y_true, y_pred):
+    y_true = tf.clip_by_value(y_true, 0.01, 350)
+    y_pred = tf.clip_by_value(y_pred, 0.01, 350)
+    mse = tf.keras.losses.mean_squared_error(1.0/y_true, 1.0/y_pred)
+    rmse = tf.sqrt(mse)
+    return rmse
+
+def loss_SILog(y_true, y_pred):
+    # ref.: https://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction
+    y_true = tf.clip_by_value(y_true, 0.01, 350)
+    y_pred = tf.clip_by_value(y_pred, 0.01, 350)
+
+    d = tf.math.log(y_true) - tf.math.log(y_pred)
+
+    p1 = tf.reduce_mean(tf.square( d ))
+    p2 = tf.square(tf.reduce_mean( d ))
+    silog = p1 - p2
+    return silog
+
+def loss_log10(y_true, y_pred):
+    pass
+
+def loss_siRMSE(y_true, y_pred):
+    pass
+
 def depth_final_loss(target, pred, max_depth=350, loss_weights=[1.0, 1.0, 0.1]):
     """
     # self.ssim_loss_weight = 0.85

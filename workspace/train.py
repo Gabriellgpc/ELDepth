@@ -4,19 +4,17 @@ from functools import partial
 import click
 import pandas as pd
 import tensorflow as tf
-import wandb
 from wandb.keras import WandbCallback
 
+import wandb
 from src.data.augmentation import *
 # from src.data.dataloader import DataGenerator
 from src.data.dataloader import build_tf_dataloader, get_tf_resize
 from src.helpers import setup_gpu
 from src.helpers.utils import read_configuration, seed_everything
-from src.losses import depth_final_loss, charbonnier_loss
+from src.losses import *
 from src.lr_schedules import cosineAnnealingScheduler
-from src.models import UNet
-from src.models import SqueezeUNet
-from src.models import XLSR
+from src.models import XLSR, SqueezeUNet, UNet
 from src.optimizer.gc_adam import GCAdam
 from src.viz.plot_images import visualize_depth_map
 
@@ -100,12 +98,20 @@ def get_loss(config):
     loss_name = config.trainer.loss.lower()
     loss = depth_final_loss
 
+    # custom_loss, mae, mse, charbonnier_loss, loss_SILlog, loss_iRMSE, loss_RMSE
+
     if loss_name == 'charbonnier_loss':
         loss = charbonnier_loss
     if loss_name == 'mae':
         loss = tf.keras.losses.mae
     if loss_name == 'mse':
         loss = tf.keras.losses.mse
+    if loss_name == 'loss_silog':
+        loss = loss_SILog
+    if loss_name == 'loss_rmse':
+        loss = loss_RMSE
+    if loss_name == 'loss_irmse':
+        loss = loss_iRMSE
 
     return loss
 
@@ -146,7 +152,7 @@ def main(config_file):
 
     # Compile the model
     loss = get_loss(config)
-    model.compile(optimizer, loss=loss)
+    model.compile(optimizer, loss=loss, metrics=[loss_SILog, loss_RMSE], weighted_metrics=[])
 
     x_dummy = tf.random.normal([1,*config.dataloader.dim, 3], 0.5, 0.5)
     model(x_dummy)
