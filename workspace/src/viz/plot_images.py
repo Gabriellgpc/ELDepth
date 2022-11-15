@@ -3,7 +3,9 @@
 # @Date:   2022-11-12 14:21:09
 # @Last Modified by:   Condados
 # @Last Modified time: 2022-11-12 14:21:16
-
+import matplotlib.pyplot as plt
+import numpy as np
+import cv2
 
 # # Ensure that the different versions of the dataset actually contain
 # # identical images.
@@ -15,6 +17,65 @@
 #     plt.axis("off")
 # plt.show()
 
+
+def visualize_depth_map(samples, test=False, model=None, save_at=''):
+    input, target = samples
+    cmap = plt.cm.get_cmap("jet").copy()
+    # cmap = plt.cm.jet
+    cmap.set_bad(color="black")
+
+    fig, ax = plt.subplots(6, 3, figsize=(50, 50))
+    if test:
+        pred = model.predict(input)
+        for i in range(6):
+            ax[i, 0].imshow((input[i].squeeze()))
+            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
+            ax[i, 2].imshow((pred[i].squeeze()), cmap=cmap)
+    else:
+        for i in range(6):
+            ax[i, 0].imshow((input[i].squeeze()))
+            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
+    if save_at != '':
+        plt.savefig(save_at)
+    return fig, ax
+
+def random_region_highlight(images,
+                            patch_shape=(128, 256),
+                            scale=2,
+                            ):
+    # select the central region of the region of intest
+    H, W, _ = images[0].shape
+    h, w = patch_shape
+    xmin = w//2
+    xmax = W - (w//2)*scale
+    ymin = h//2
+    ymax = H - (h//2)*scale
+    xc = np.random.uniform(low=xmin, high=xmax)
+    yc = np.random.uniform(low=ymin, high=ymax)
+
+    xi = int(xc - w//2)
+    xf = int(xc + w//2)
+    yi = int(yc - h//2)
+    yf = int(yc + h//2)
+
+    images_out = []
+    # loop throught each image
+    for image in images:
+        # draw rectangle
+        image_copy = image.copy()
+        cv2.rectangle(image_copy, (xi,yi), (xf,yf), (0,255,0), 5)
+
+        crop = image_copy[yi:yf,xi:xf,:]
+
+        new_h = h*scale
+        new_w = w*scale
+
+        crop = cv2.resize(crop, (new_w, new_h))
+
+        # overlaping the images
+        image_copy[H-crop.shape[0]:,W-crop.shape[1]:,:] = crop
+        images_out.append(image_copy)
+    return images_out
 
 # 3D viz
 # https://keras.io/examples/vision/nerf/

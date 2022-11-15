@@ -1,6 +1,9 @@
 *.env
 *logs
+/workspace/tmp
+/workspace/wandb
+
+cache
+
 workspace.code*
 checkpoints
-tmp
-wandb
