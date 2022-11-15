@@ -82,6 +82,9 @@ def build_tf_dataloader(input_paths, depth_paths, mask_paths, batch_size=32, tra
         data = data.map(transform_f, num_parallel_calls=tf.data.AUTOTUNE)
     # data = data.batch(batch_size).cache().prefetch(tf.data.AUTOTUNE)
     data = data.batch(batch_size)
+
+    if train:
+        data = data.repeat()
     return data
 
 # class DataGenerator(tf.keras.utils.Sequence):

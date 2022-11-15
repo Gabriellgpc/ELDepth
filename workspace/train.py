@@ -22,45 +22,63 @@ from src.viz.plot_images import visualize_depth_map
 def get_callbacks(config):
     callbacks = []
 
-    wandb_cb = WandbCallback(log_weights=False,
-                             save_graph=False,
-                             save_model=False,
-                             save_weights_only=False,
-                             compute_flops=True,
-                            #  log_batch_frequency=5,
-                             )
+    wandb_cb = WandbCallback()
     callbacks.append(wandb_cb)
+
+    fmt = '{epoch:02d}_{loss:.2f}_{val_loss:.2f}.h5'
+    checkpoint_filepath = os.path.join('/datasets/checkpoints', fmt)
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_filepath,
+        save_weights_only=True,
+        monitor='val_loss',
+        mode='auto',
+        verbose=2,
+        save_best_only=True)
+    callbacks.append(model_checkpoint_callback)
 
     # earlystopping
     earlystop = tf.keras.callbacks.EarlyStopping(patience=config.trainer.patience,
                                                  monitor='val_loss',
                                                  restore_best_weights=True,
-                                                 verbose=1,
+                                                 verbose=2,
                                                  )
     callbacks.append(earlystop)
 
+    # reduce lr on plataur
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss',
+                                                     factor=0.1,
+                                                     patience=3,
+                                                     min_lr=2e-8,
+                                                     verbose=2,
+                                                     )
+    callbacks.append(reduce_lr)
+
     # lr schedule
-    schedule = partial(cosineAnnealingScheduler,
-                       initial_lr=config.trainer.initial_lr,
-                       reset_step=5,
-                       min_lr=config.trainer.min_lr)
-    schedule_cb = tf.keras.callbacks.LearningRateScheduler( schedule )
-    callbacks.append(schedule_cb)
+    # schedule = partial(cosineAnnealingScheduler,
+    #                    initial_lr=config.trainer.initial_lr,
+    #                    reset_step=5,
+    #                    min_lr=config.trainer.min_lr)
+    # schedule_cb = tf.keras.callbacks.LearningRateScheduler( schedule )
+    # callbacks.append(schedule_cb)
 
     return callbacks
 
 def get_datagenerator(config):
 
+    subset = -1
+    if config.dataloader.subset is not None:
+        subset = config.dataloader.subset
+
     # read CSV
     train_df = pd.read_csv(config.dataloader.train_csv)
-    validation_df = pd.read_csv(config.dataloader.train_csv)
+    validation_df = pd.read_csv(config.dataloader.validation_csv)
 
     # train loader
     train_transforms = [get_tf_resize(config.dataloader.dim)]
     train_loader = build_tf_dataloader(
-                        input_paths=train_df['image'].values,
-                        depth_paths=train_df['depth'].values,
-                        mask_paths=train_df['mask'].values,
+                        input_paths=train_df['image'].values[:subset],
+                        depth_paths=train_df['depth'].values[:subset],
+                        mask_paths=train_df['mask'].values[:subset],
                         batch_size=config.dataloader.batch_size,
                         transforms=train_transforms,
                         train=True
@@ -69,9 +87,9 @@ def get_datagenerator(config):
     # validation loader
     validation_transforms = [get_tf_resize(config.dataloader.dim)]
     validation_loader = build_tf_dataloader(
-                        input_paths=validation_df['image'].values,
-                        depth_paths=validation_df['depth'].values,
-                        mask_paths=validation_df['mask'].values,
+                        input_paths=validation_df['image'].values[:subset],
+                        depth_paths=validation_df['depth'].values[:subset],
+                        mask_paths=validation_df['mask'].values[:subset],
                         batch_size=config.dataloader.batch_size,
                         transforms=validation_transforms,
                         train=True #for debug or in case wish to use the validations steps
