@@ -48,4 +48,5 @@ class XLSR(Model):
         res = ReLU()(res)
         res = Conv2D(filters=3, kernel_size=(3,3), padding='SAME')(res)
 
-        return inp + res
+        # return inp + res
+        return res

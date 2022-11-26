@@ -25,24 +25,27 @@ def visualize_depth_map(samples, test=False, model=None, save_at=''):
     depths = depths.numpy()
     masks = masks.numpy()
 
-    max_depth = min(300, depths.max())
-    depths = np.clip(depths, 0.1, max_depth)
+    depths = np.clip(depths, 0.01, 1.0)
     depths = np.log(depths)
     depths = np.ma.masked_where(~(masks > 0), depths)
-    depths = np.clip(depths, 0.1, np.log(max_depth))
 
     cmap = plt.cm.get_cmap("jet").copy()
     # cmap = plt.cm.jet
     cmap.set_bad(color="black")
 
-    fig, ax = plt.subplots(6, 3, figsize=(50, 50))
     if test:
+        fig, ax = plt.subplots(6, 3, figsize=(50, 50))
         pred = model.predict(images)
+        pred = np.clip(pred, 0.01, 1.0)
+        pred = np.log(pred)
+        # pred = np.ma.masked_where(~(masks > 0), pred)
+
         for i in range(6):
             ax[i, 0].imshow((images[i].squeeze()))
             ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
             ax[i, 2].imshow((pred[i].squeeze()), cmap=cmap)
     else:
+        fig, ax = plt.subplots(6, 2, figsize=(50, 50))
         for i in range(6):
             ax[i, 0].imshow((images[i].squeeze()))
             ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)

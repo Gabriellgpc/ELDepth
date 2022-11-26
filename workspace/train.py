@@ -7,17 +7,22 @@ import tensorflow as tf
 from wandb.keras import WandbCallback
 
 import wandb
+from src.models import XLSR
+from src.models import SqueezeUNet
+from src.models import BANet
+from src.models import NOAHTCV
+
 from src.data.augmentation import *
-# from src.data.dataloader import DataGenerator
-from src.data.dataloader import build_tf_dataloader, get_tf_resize
+from src.data.dataloader import build_tf_dataloader, get_tf_resize, parser_DIODE_dataset
+from src.losses import *
+from src.metrics import *
 from src.helpers import setup_gpu
 from src.helpers.utils import read_configuration, seed_everything
-from src.losses import *
 from src.lr_schedules import cosineAnnealingScheduler
-from src.models import XLSR, SqueezeUNet, UNet
 from src.optimizer.gc_adam import GCAdam
 from src.viz.plot_images import visualize_depth_map
 
+from keras_unet_collection import models as unet_models
 
 def get_callbacks(config):
     callbacks = []
@@ -32,7 +37,7 @@ def get_callbacks(config):
         save_weights_only=True,
         monitor='val_loss',
         mode='auto',
-        verbose=2,
+        verbose=1,
         save_best_only=True)
     callbacks.append(model_checkpoint_callback)
 
@@ -45,21 +50,21 @@ def get_callbacks(config):
     callbacks.append(earlystop)
 
     # reduce lr on plataur
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss',
-                                                     factor=0.1,
-                                                     patience=3,
-                                                     min_lr=2e-8,
-                                                     verbose=2,
-                                                     )
-    callbacks.append(reduce_lr)
+    # reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss',
+    #                                                  factor=0.1,
+    #                                                  patience=3,
+    #                                                  min_lr=2e-8,
+    #                                                  verbose=2,
+    #                                                  )
+    # callbacks.append(reduce_lr)
 
     # lr schedule
-    # schedule = partial(cosineAnnealingScheduler,
-    #                    initial_lr=config.trainer.initial_lr,
-    #                    reset_step=5,
-    #                    min_lr=config.trainer.min_lr)
-    # schedule_cb = tf.keras.callbacks.LearningRateScheduler( schedule )
-    # callbacks.append(schedule_cb)
+    schedule = partial(cosineAnnealingScheduler,
+                       initial_lr=config.trainer.initial_lr,
+                       reset_step=10,
+                       min_lr=config.trainer.min_lr)
+    schedule_cb = tf.keras.callbacks.LearningRateScheduler( schedule )
+    callbacks.append(schedule_cb)
 
     return callbacks
 
@@ -74,7 +79,7 @@ def get_datagenerator(config):
     validation_df = pd.read_csv(config.dataloader.validation_csv)
 
     # train loader
-    train_transforms = [get_tf_resize(config.dataloader.dim)]
+    train_transforms = [parser_DIODE_dataset, random_crop, random_rotate]
     train_loader = build_tf_dataloader(
                         input_paths=train_df['image'].values[:subset],
                         depth_paths=train_df['depth'].values[:subset],
@@ -85,30 +90,56 @@ def get_datagenerator(config):
                         )
 
     # validation loader
-    validation_transforms = [get_tf_resize(config.dataloader.dim)]
+    validation_transforms = [parser_DIODE_dataset, get_tf_resize(config.dataloader.dim)]
     validation_loader = build_tf_dataloader(
                         input_paths=validation_df['image'].values[:subset],
                         depth_paths=validation_df['depth'].values[:subset],
                         mask_paths=validation_df['mask'].values[:subset],
                         batch_size=config.dataloader.batch_size,
                         transforms=validation_transforms,
-                        train=True #for debug or in case wish to use the validations steps
+                        train=False #for debug or in case wish to use the validations steps
                         )
 
     return train_loader, validation_loader
 
 def get_model(config):
-    model_name = config.network['type'].lower()
-    model = UNet()
+    model_name = config.network.type.upper()
+    model = None
 
-    if model_name == 'squeezenet':
+    if model_name == 'XLSR':
+        hparams = config.network['XLRD']
+        xlsr_arch = XLSR(**hparams, name='XLRD')
+        x = tf.keras.layers.Input(shape=(None, None, 3))
+        out = xlsr_arch.model(x)
+        model = tf.keras.models.Model(inputs=x, outputs=out, name='XLRD')
+    elif model_name == 'SQUEEZEUNET':
         hparams = config.network['SqueezeUNet']
-        x = tf.keras.layers.Input(shape=(config.dataloader.dim[0], config.dataloader.dim[1], 3))
+        x = tf.keras.layers.Input(shape=(None, None, 3))
         out = SqueezeUNet(x, **hparams)
         model = tf.keras.models.Model(inputs=x, outputs=out, name='Squeeze-UNet')
-    if model_name == 'xlsr':
-        hparams = config.network['XLSR']
-        model = XLSR(**hparams, name='XLSR')
+    elif model_name == 'NOAHTCV':
+        hparams = config.network['NOAHTCV']
+        model = NOAHTCV(**hparams, name='NOAHTCV')
+        inp_dummy = tf.keras.layers.Input([None, None, 3])
+        model(inp_dummy)
+    elif model_name == 'UNET':
+        # hparams = config.network['UNet']
+        hparams = config.network['UNet']
+        model = unet_models.unet_2d(**hparams, name='UNet')
+    elif model_name == 'ATT-UNET':
+        hparams = config.network['Att-UNet']
+        model = unet_models.att_unet_2d(**hparams, name='Att-UNet')
+    elif model_name == 'U2NET':
+        hparams = config.network['U2Net']
+        model = unet_models.u2net_2d(**hparams, name='U2Net')
+    elif model_name == 'SWIN-UNET':
+        hparams = config.network['Swin-UNet']
+        model = unet_models.swin_unet_2d(**hparams, name='Swin-UNet')
+    elif model_name == 'BANET':
+        hparams = config.network['BANET']
+        model = BANet(**hparams, name='BANET')
+    else:
+        raise('Invalid model type', model_name)
 
     return model
 
@@ -159,8 +190,8 @@ def main(config_file):
     #     Optimizer
     # ------------------
 
-    # optimizer = tf.keras.optimizers.Adam(learning_rate=config.trainer.initial_lr)
-    optimizer = GCAdam(learning_rate=config.trainer.initial_lr)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=config.trainer.initial_lr)
+    # optimizer = GCAdam(learning_rate=config.trainer.initial_lr)
 
     # ------------------
     #      Model
@@ -170,7 +201,7 @@ def main(config_file):
 
     # Compile the model
     loss = get_loss(config)
-    model.compile(optimizer, loss=loss, metrics=[loss_SILog, loss_RMSE], weighted_metrics=[])
+    model.compile(optimizer, loss=loss, metrics=[metric_RMSE, metric_absRel, metric_SILog], weighted_metrics=[])
 
     x_dummy = tf.random.normal([1,*config.dataloader.dim, 3], 0.5, 0.5)
     model(x_dummy)
@@ -185,8 +216,6 @@ def main(config_file):
         validation_data=validation_loader,
         epochs=config.trainer.epochs,
         steps_per_epoch=config.trainer.steps_per_epoch,
-        validation_steps=config.trainer.validation_steps,
-        validation_freq=config.trainer.validation_freq,
         callbacks=callbacks,
         max_queue_size=5,
         use_multiprocessing=True,
@@ -199,10 +228,13 @@ def main(config_file):
 
     _, validation_loader = get_datagenerator(config)
 
-    figsaved = '/workspace/tmp/visualize_depth_map.png'
+    figsaved = '/workspace/tmp/visualize_depth_map-val.png'
     fig, _ = visualize_depth_map( next(iter(validation_loader)), test=True, model=model, save_at=figsaved)
-    # wandb.log_artifact()
-    wandb.log({'depth-map':fig})
+    wandb.log({'validation-test-depth-map':fig})
+
+    figsaved = '/workspace/tmp/visualize_depth_map-train.png'
+    fig, _ = visualize_depth_map( next(iter(train_loader)), test=True, model=model, save_at=figsaved)
+    wandb.log({'train-check-depth-map':fig})
 
     #snipper to cleanup cache: wandb artifact cache cleanup 1GB
 

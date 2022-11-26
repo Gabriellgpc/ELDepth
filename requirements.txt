@@ -12,3 +12,4 @@ nvitop
 pydot
 click
 wget
+keras-unet-collection

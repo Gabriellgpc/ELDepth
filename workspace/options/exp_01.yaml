@@ -9,30 +9,125 @@ dataloader:
   batch_size: 32
   patch_size: [256]
   dim: [256, 256]
-  subset: 100 #pass a int here if you want to use just a subset of the train set
+  subset: null #pass a int here if you want to use just a subset of the train set
   train_csv: '/workspace/tmp/DIODO_train.csv'
   validation_csv: '/workspace/tmp/DIODO_val.csv'
 
 trainer:
-  epochs: 500
-  patience: 5
-  initial_lr: 2.e-5
+  epochs: 200
+  patience: 15
+  initial_lr: 1.e-4
   min_lr: 1.e-6
   steps_per_epoch: 100
-  validation_steps: 10
+  # validation_steps: 10
   validation_freq: 1
   verbose: 2
-  loss: 'loss_SILog' #[custom_loss, mae, mse, charbonnier_loss, loss_SILlog, loss_iRMSE, loss_RMSE]
+  loss: 'custom_loss' #[custom_loss, mae, mse, charbonnier_loss, loss_SILlog, loss_iRMSE, loss_RMSE]
 
 network:
-  type: unet
+  type: U2Net
 
-  UNet:
-    null
+  BATNet:
+    dim_1: 8
+    dim_2: 16
+    num_BAM_blocks: 10
+  NOAHTCV:
+    n_filters: 32
+    initializer: 'he_normal'
+    use_bias: False
+  XLRD:
+    num_gblocks: 4
+    nfeat: 64
+  MIRNet:
+    channels: 16
+    num_rrg: 4
+    num_mrb: 2
+  NAFNet: #too heavy and with some problem in the code
+    width: 16
+    n_middle_blocks: 1
+    n_enc_blocks: [1,1,1,28]
+    n_dec_blocks: [1,1,1,1]
+    dropout_rate: 0.
+    train_size: [256,256,3]
+    tlsc_rate: 1.5
+  MIRNet2:
+    inp_channels: 3
+    out_channels: 3
+    n_feat: 40 #reference: 80
+    chan_factor: 2  #reference: 1.5
+    n_RRG: 4
+    n_MRB: 2
+    scale: 1
+    use_bias: False
+    task: null
   SqueezeUNet:
     num_classes: 3
     deconv_ksize: 3
-    dropout: 0.5
-  XLSR:
-    num_gblocks: 4
-    nfeat: 32
+    dropout: 0.3
+  # ----------------------------
+  # From unet keras collections
+  # ----------------------------
+  # pool=False: downsampling with a convolutional layer (2-by-2 convolution kernels with 2 strides;
+  # optional batch normalization and activation).
+  # pool=True or pool='max' downsampling with a max-pooling layer.
+  # pool='ave' downsampling with a average-pooling layer.
+  # unpool: the configuration of upsampling (decoding) blocks.
+  # unpool=False: upsampling with a transpose convolutional layer (2-by-2 convolution kernels with 2 strides;
+  #  optional batch normalization and activation).
+  # unpool=True or unpool='bilinear' upsampling with bilinear interpolation.
+  # unpool='nearest' upsampling with reflective padding.
+  # stack_num_down: number of convolutional layers per downsampling level.
+  # stack_num_up: number of convolutional layers (after concatenation) per upsampling level.
+  # batch_norm: if specified as True, all convolutional layers will be configured as stacks of "Conv2D-BN-Activation".
+  # output_activation: the activation function of the output layer. Recommended choices are 'Sigmoid', 'Softmax', None (linear), 'Snake'
+  # activation: the activation function of hidden layers. Available choices are 'ReLU', 'LeakyReLU', 'PReLU', 'ELU', 'GELU', 'Snake'.
+  # filter_num: a list that defines the number of convolutional filters per down- and up-sampling blocks.
+  # activation='PReLU' is not compatible with input_size=(None, None, 3).
+  # backbone_name: the bakcbone model name. Should be one of the `tensorflow.keras.applications` class.
+  #                      None (default) means no backbone.
+  #                      Currently supported backbones are:
+  #                      (1) VGG16, VGG19
+  #                      (2) ResNet50, ResNet101, ResNet152
+  #                      (3) ResNet50V2, ResNet101V2, ResNet152V2
+  #                      (4) DenseNet121, DenseNet169, DenseNet201
+  #                      (5) EfficientNetB[0-7]
+  UNet:
+    input_size: [null, null, 3]
+    filter_num: [16, 32, 64, 128, 256]
+    n_labels: 1
+    stack_num_down: 2
+    stack_num_up: 2
+    activation: 'ReLU'
+    output_activation: null
+    batch_norm: False
+    pool: True
+    unpool: True
+    backbone: null
+    weights: 'imagenet'
+    freeze_backbone: True
+  U2Net:
+    input_size: [null, null, 3]
+    n_labels: 1
+    filter_num_down: [8, 8, 16, 16]
+    filter_num_up: [8, 8, 16, 16]
+    filter_4f_num: [32, 32]
+    filter_4f_mid_num: [32, 32]
+    batch_norm: False
+    activation: 'ReLU'
+    output_activation: null
+    pool: False
+    unpool: False
+    deep_supervision: False
+  Att-UNet:
+    input_size: [null, null, 3]
+    filter_num: [16, 32, 64, 128]
+    n_labels: 3
+    stack_num_down: 2
+    stack_num_up: 2
+    activation: 'ReLU'
+    atten_activation: 'ReLU'
+    attention: 'add'
+    output_activation: null
+    batch_norm: True
+    pool: False
+    unpool: 'bilinear'
