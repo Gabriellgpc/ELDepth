@@ -72,13 +72,10 @@ def loss_SILog(y_true, y_pred):
     silog = (p1 - 0.85*p2)*10.0
     return silog
 
-def loss_log10(y_true, y_pred):
-    pass
-
-def loss_siRMSE(y_true, y_pred):
-    pass
-
-def depth_final_loss(target, pred, max_depth=1.0, loss_weights=[1.0, 1.0, 0.1]):
+# ssim_loss_weight: 0.85
+# l1_loss_weight: 0.1
+# edge_loss_weight: 0.9
+def depth_final_loss(target, pred, max_depth=1.0, loss_weights=[0.85, 0.1, 0.9]):
     """
     # self.ssim_loss_weight = 0.85
     # self.l1_loss_weight = 0.1
@@ -98,7 +95,7 @@ def depth_final_loss(target, pred, max_depth=1.0, loss_weights=[1.0, 1.0, 0.1]):
     depth_smoothness_loss = tf.clip_by_value(depth_smoothness_loss, 0, 1)
 
     # Structural similarity (SSIM) index
-    ssim_loss = 1 - tf.image.ssim(target, pred, max_val=max_depth) * 0.5
+    ssim_loss = 1 - tf.image.ssim(target, pred, max_val=max_depth)
     ssim_loss = tf.reduce_mean(ssim_loss)
     ssim_loss = tf.clip_by_value(ssim_loss, 0, 1)
     # Point-wise depth

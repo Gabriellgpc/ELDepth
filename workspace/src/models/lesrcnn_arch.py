@@ -22,10 +22,6 @@ class LESRCNN(Model):
         out = Conv2D(nfilters, (1,1))(out)
         return out + X
 
-    def UpsampleBlock(self, X, scale):
-        pass
-
-
     def model(self, inp, ngblocks=4):
         res_conv_00 = self.ConvReLU(inp, filters=8, kernel_size=3)
         res_conv_01 = self.ConvReLU(inp, filters=8, kernel_size=3)

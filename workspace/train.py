@@ -7,19 +7,16 @@ import tensorflow as tf
 from wandb.keras import WandbCallback
 
 import wandb
-from src.models import XLSR
-from src.models import SqueezeUNet
-from src.models import BANet
-from src.models import NOAHTCV
+from src.models import BaselineModel
 
 from src.data.augmentation import *
-from src.data.dataloader import build_tf_dataloader, get_tf_resize, parser_DIODE_dataset
+from src.data.dataloader import build_tf_dataloader, get_tf_resize
+from src.data.dataloader import DataGenerator
 from src.losses import *
 from src.metrics import *
 from src.helpers import setup_gpu
 from src.helpers.utils import read_configuration, seed_everything
 from src.lr_schedules import cosineAnnealingScheduler
-from src.optimizer.gc_adam import GCAdam
 from src.viz.plot_images import visualize_depth_map
 
 from keras_unet_collection import models as unet_models
@@ -78,26 +75,33 @@ def get_datagenerator(config):
     train_df = pd.read_csv(config.dataloader.train_csv)
     validation_df = pd.read_csv(config.dataloader.validation_csv)
 
+    # train_loader = DataGenerator(train_df, batch_size=config.dataloader.batch_size, dim=config.dataloader.dim, shuffle=True)
+    # validation_loader = DataGenerator(validation_df, batch_size=config.dataloader.batch_size, dim=config.dataloader.dim, shuffle=False)
+
     # train loader
-    train_transforms = [parser_DIODE_dataset, random_crop, random_rotate]
+    # train_transforms = [parser_DIODE_dataset, random_crop, random_rotate]
+    train_transforms = [get_tf_resize(config.dataloader.dim)]
     train_loader = build_tf_dataloader(
                         input_paths=train_df['image'].values[:subset],
                         depth_paths=train_df['depth'].values[:subset],
                         mask_paths=train_df['mask'].values[:subset],
                         batch_size=config.dataloader.batch_size,
                         transforms=train_transforms,
-                        train=True
+                        shuffle=True,
+                        repeat=False,
                         )
 
     # validation loader
-    validation_transforms = [parser_DIODE_dataset, get_tf_resize(config.dataloader.dim)]
+    # validation_transforms = [parser_DIODE_dataset, get_tf_resize(config.dataloader.dim)]
+    validation_transforms = [get_tf_resize(config.dataloader.dim)]
     validation_loader = build_tf_dataloader(
                         input_paths=validation_df['image'].values[:subset],
                         depth_paths=validation_df['depth'].values[:subset],
                         mask_paths=validation_df['mask'].values[:subset],
                         batch_size=config.dataloader.batch_size,
                         transforms=validation_transforms,
-                        train=False #for debug or in case wish to use the validations steps
+                        shuffle=False,
+                        repeat=False,
                         )
 
     return train_loader, validation_loader
@@ -106,22 +110,9 @@ def get_model(config):
     model_name = config.network.type.upper()
     model = None
 
-    if model_name == 'XLSR':
-        hparams = config.network['XLRD']
-        xlsr_arch = XLSR(**hparams, name='XLRD')
-        x = tf.keras.layers.Input(shape=(None, None, 3))
-        out = xlsr_arch.model(x)
-        model = tf.keras.models.Model(inputs=x, outputs=out, name='XLRD')
-    elif model_name == 'SQUEEZEUNET':
-        hparams = config.network['SqueezeUNet']
-        x = tf.keras.layers.Input(shape=(None, None, 3))
-        out = SqueezeUNet(x, **hparams)
-        model = tf.keras.models.Model(inputs=x, outputs=out, name='Squeeze-UNet')
-    elif model_name == 'NOAHTCV':
-        hparams = config.network['NOAHTCV']
-        model = NOAHTCV(**hparams, name='NOAHTCV')
-        inp_dummy = tf.keras.layers.Input([None, None, 3])
-        model(inp_dummy)
+    if model_name == 'BASELINE':
+        hparams = config.network['Baseline']
+        model = BaselineModel(**hparams, name='Baseline')
     elif model_name == 'UNET':
         # hparams = config.network['UNet']
         hparams = config.network['UNet']
@@ -135,9 +126,6 @@ def get_model(config):
     elif model_name == 'SWIN-UNET':
         hparams = config.network['Swin-UNet']
         model = unet_models.swin_unet_2d(**hparams, name='Swin-UNet')
-    elif model_name == 'BANET':
-        hparams = config.network['BANET']
-        model = BANet(**hparams, name='BANET')
     else:
         raise('Invalid model type', model_name)
 
@@ -201,7 +189,11 @@ def main(config_file):
 
     # Compile the model
     loss = get_loss(config)
-    model.compile(optimizer, loss=loss, metrics=[metric_RMSE, metric_absRel, metric_SILog], weighted_metrics=[])
+    # loss= tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction="none")
+    # metrics = [metric_RMSE, metric_SILog, metric_Accuracies, metric_absRel, metric_log10, metric_RMSElog, metric_SqRel]
+    metrics = [metric_RMSE]
+    model.compile(optimizer, loss=loss, metrics=metrics, weighted_metrics=[])
+
 
     x_dummy = tf.random.normal([1,*config.dataloader.dim, 3], 0.5, 0.5)
     model(x_dummy)
@@ -217,8 +209,8 @@ def main(config_file):
         epochs=config.trainer.epochs,
         steps_per_epoch=config.trainer.steps_per_epoch,
         callbacks=callbacks,
-        max_queue_size=5,
-        use_multiprocessing=True,
+        # max_queue_size=5,
+        # use_multiprocessing=True,
         workers=os.cpu_count(),
     )
 
@@ -226,7 +218,8 @@ def main(config_file):
     #     W&B Logs
     # ------------------
 
-    _, validation_loader = get_datagenerator(config)
+    # _, validation_loader = get_datagenerator(config)
+    train_loader, validation_loader = get_datagenerator(config)
 
     figsaved = '/workspace/tmp/visualize_depth_map-val.png'
     fig, _ = visualize_depth_map( next(iter(validation_loader)), test=True, model=model, save_at=figsaved)
@@ -236,7 +229,8 @@ def main(config_file):
     fig, _ = visualize_depth_map( next(iter(train_loader)), test=True, model=model, save_at=figsaved)
     wandb.log({'train-check-depth-map':fig})
 
-    #snipper to cleanup cache: wandb artifact cache cleanup 1GB
+    #snipper to cleanup cache:
+    #$ wandb artifact cache cleanup 1GB
 
 if __name__=='__main__':
     main()

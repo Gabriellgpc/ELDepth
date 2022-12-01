@@ -18,40 +18,62 @@ import cv2
 # plt.show()
 
 
-def visualize_depth_map(samples, test=False, model=None, save_at=''):
-    images, depths, masks = samples
-
-    images = images.numpy()
-    depths = depths.numpy()
-    masks = masks.numpy()
-
-    depths = np.clip(depths, 0.01, 1.0)
-    depths = np.log(depths)
-    depths = np.ma.masked_where(~(masks > 0), depths)
-
-    cmap = plt.cm.get_cmap("jet").copy()
-    # cmap = plt.cm.jet
+def visualize_depth_map(samples, test=False, model=None, save_at='', nrows=16):
+    input, target,_ = samples
+    input, target = input.numpy(), target.numpy()
+    cmap = plt.cm.get_cmap("plasma").copy()
     cmap.set_bad(color="black")
 
     if test:
-        fig, ax = plt.subplots(6, 3, figsize=(50, 50))
-        pred = model.predict(images)
-        pred = np.clip(pred, 0.01, 1.0)
-        pred = np.log(pred)
-        # pred = np.ma.masked_where(~(masks > 0), pred)
-
-        for i in range(6):
-            ax[i, 0].imshow((images[i].squeeze()))
-            ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
+        pred = model.predict(input)
+        fig, ax = plt.subplots(nrows, 3, figsize=(50, 50))
+        for i in range(nrows):
+            ax[i, 0].imshow((input[i].squeeze()))
+            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
             ax[i, 2].imshow((pred[i].squeeze()), cmap=cmap)
     else:
-        fig, ax = plt.subplots(6, 2, figsize=(50, 50))
-        for i in range(6):
-            ax[i, 0].imshow((images[i].squeeze()))
-            ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
+        fig, ax = plt.subplots(nrows, 2, figsize=(50, 50))
+        for i in range(nrows):
+            ax[i, 0].imshow((input[i].squeeze()))
+            ax[i, 1].imshow((target[i].squeeze()), cmap=cmap)
     if save_at != '':
         plt.savefig(save_at)
     return fig, ax
+
+# def visualize_depth_map(samples, test=False, model=None, save_at=''):
+#     images, depths, masks = samples
+
+#     images = images.numpy()
+#     depths = depths.numpy()
+#     masks = masks.numpy()
+
+#     depths = np.clip(depths, 0.01, 1.0)
+#     depths = np.log(depths)
+#     depths = np.ma.masked_where(~(masks > 0), depths)
+
+#     cmap = plt.cm.get_cmap("jet").copy()
+#     # cmap = plt.cm.jet
+#     cmap.set_bad(color="black")
+
+#     if test:
+#         fig, ax = plt.subplots(6, 3, figsize=(50, 50))
+#         pred = model.predict(images)
+#         pred = np.clip(pred, 0.01, 1.0)
+#         pred = np.log(pred)
+#         # pred = np.ma.masked_where(~(masks > 0), pred)
+
+#         for i in range(6):
+#             ax[i, 0].imshow((images[i].squeeze()))
+#             ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
+#             ax[i, 2].imshow((pred[i].squeeze()), cmap=cmap)
+#     else:
+#         fig, ax = plt.subplots(6, 2, figsize=(50, 50))
+#         for i in range(6):
+#             ax[i, 0].imshow((images[i].squeeze()))
+#             ax[i, 1].imshow((depths[i].squeeze()), cmap=cmap)
+#     if save_at != '':
+#         plt.savefig(save_at)
+#     return fig, ax
 
 def random_region_highlight(images,
                             patch_shape=(128, 256),

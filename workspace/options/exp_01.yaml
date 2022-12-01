@@ -8,25 +8,32 @@ gpu: 0 #[0,1] or -1 in case don't want to use any gpu
 dataloader:
   batch_size: 32
   patch_size: [256]
-  dim: [256, 256]
+  dim: [256, 256] #768, 1024
   subset: null #pass a int here if you want to use just a subset of the train set
+  # train_csv: '/workspace/tmp/DIODO_val.csv'
   train_csv: '/workspace/tmp/DIODO_train.csv'
   validation_csv: '/workspace/tmp/DIODO_val.csv'
 
 trainer:
-  epochs: 200
-  patience: 15
+  epochs: 100
+  patience: 5
   initial_lr: 1.e-4
   min_lr: 1.e-6
-  steps_per_epoch: 100
+  steps_per_epoch: null
   # validation_steps: 10
   validation_freq: 1
   verbose: 2
   loss: 'custom_loss' #[custom_loss, mae, mse, charbonnier_loss, loss_SILlog, loss_iRMSE, loss_RMSE]
 
 network:
-  type: U2Net
+  type: Baseline
 
+  Baseline:
+    max_depth: 360
+    ssim_loss_weight: 0.85
+    l1_loss_weight: 0.1
+    edge_loss_weight: 0.9
+    f: [16, 32, 64, 128, 256]
   BATNet:
     dim_1: 8
     dim_2: 16
